@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Island Bomber</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="game" aria-label="Game view"></canvas>
+  <div id="damage" aria-hidden="true"></div>
+
+  <div id="hud" class="hidden">
+    <div class="col left">
+      <section class="panel flight" aria-label="Flight">
+        <div class="big"><b id="h-speed">0</b><span>m/s</span></div>
+        <div class="sub" id="h-kmh">0 km/h</div>
+        <div class="kv"><span>Height over ground</span><b id="h-agl">0 m</b></div>
+        <div class="kv"><span>Height over sea</span><b id="h-asl">0 m</b></div>
+        <div class="kv"><span>Throttle</span><div class="bar"><i id="h-throttle"></i></div></div>
+      </section>
+      <section class="panel physics" id="physics" aria-label="Flight physics">
+        <header>
+          <span>Flight physics</span>
+          <button id="physics-toggle" type="button" aria-label="Show or hide the physics panel">H</button>
+        </header>
+        <div id="physics-body"></div>
+      </section>
+    </div>
+
+    <div class="col right">
+      <section class="panel status" aria-label="Mission">
+        <div id="h-bombs" class="bombs"></div>
+        <div class="kv"><span>Trucks left</span><b id="h-trucks">0</b></div>
+        <div class="kv"><span>Health</span><div class="bar health"><i id="h-health"></i></div></div>
+        <div class="kv hidden" id="h-wind-row"><span>Wind</span><b><span id="h-wind-arrow" class="arrow">↑</span> <span id="h-wind"></span></b></div>
+        <canvas id="radar" width="320" height="320" aria-label="Radar"></canvas>
+      </section>
+      <section class="panel board hidden" id="board" aria-label="Pilots">
+        <div class="kv"><span>Time left</span><b id="board-time">5:00</b></div>
+        <ul id="board-rows"></ul>
+      </section>
+    </div>
+
+    <div id="labels" aria-hidden="true"></div>
+    <div id="gun-sight" class="hidden" aria-hidden="true">＋</div>
+    <div id="ground-status" class="hidden panel"></div>
+    <section id="aim-controls" class="panel hidden" aria-label="Ground aiming controls">
+      <button id="btn-aim-fullscreen" type="button">Fullscreen &amp; capture (F)</button>
+      <label>Mouse sensitivity <input id="aim-sensitivity" type="range" min="20" max="200" step="5" value="75"><output id="aim-sensitivity-value">75%</output></label>
+      <small id="aim-capture-hint">Click the game to capture the mouse · F for fullscreen</small>
+    </section>
+    <div id="release" class="hidden" aria-live="off">
+      <div id="release-text"></div>
+      <div class="bar"><i id="release-fill"></i></div>
+    </div>
+    <div id="banner" class="hidden"></div>
+
+    <div id="autoturn" class="hidden">Turning back to the island</div>
+    <div id="messages" aria-live="polite"></div>
+    <div id="pip-frame" class="hidden"><span>Bomb cam</span></div>
+    <div id="hint">A/D turn · W/S pitch · Shift/E faster · Q slower · Space bomb · C bomb cam · H physics · P pause</div>
+
+    <div id="touch" class="hidden">
+      <div id="stick"><div id="stick-knob"></div></div>
+      <div id="aim-stick" class="hidden">AIM</div>
+      <div class="touch-buttons">
+        <button id="t-pause" type="button" aria-label="Pause">II</button>
+        <button id="t-cam" type="button" aria-label="Bomb camera">CAM</button>
+        <button id="t-up" type="button" aria-label="Faster">+</button>
+        <button id="t-down" type="button" aria-label="Slower">−</button>
+        <button id="t-bomb" type="button" aria-label="Drop bomb">BOMB</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" class="screen">
+    <div class="card">
+      <h1>Island Bomber</h1>
+      <p>Loading the island…</p>
+      <div class="bar wide"><i id="load-bar"></i></div>
+      <p id="load-error" class="error hidden"></p>
+    </div>
+  </div>
+
+  <div id="menu" class="screen hidden">
+    <div class="card wide">
+      <h1>Island Bomber</h1>
+      <p class="tag">Drop bombs. Respect gravity. Annoy some trucks.</p>
+      <h2>Choose your island</h2>
+      <div id="map-list" class="choices maps"></div>
+      <h2>Choose your role</h2>
+      <div id="role-list" class="choices roles"></div>
+      <p id="role-help" class="muted"></p>
+      <h2>Pick your jet</h2>
+      <div id="jet-list" class="choices"></div>
+      <h2>Pick a level</h2>
+      <div id="level-list" class="choices"></div>
+      <h2>Difficulty</h2>
+      <div id="diff-list" class="choices"></div>
+      <div class="actions">
+        <button id="btn-how" type="button" class="ghost">How bombs work</button>
+        <button id="btn-online" type="button" class="ghost">Play online</button>
+        <button id="btn-fly" type="button" class="primary">Fly solo!</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tutorial" class="screen hidden">
+    <div class="card wide">
+      <h1>How bombs work</h1>
+      <p>When you let go of a bomb it keeps your jet's speed and direction. After that only gravity acts on it
+        (g = 9.81 m/s²), pulling it down faster and faster. The path is a curve called a <b>parabola</b>.
+        So you have to let go <b>before</b> you are over the target.</p>
+      <div class="formula">
+        <div>Fall time <b>t = √(2h / g)</b></div>
+        <div>Distance it travels forward <b>d = v · t</b></div>
+      </div>
+      <p><b>Example:</b> flying level at 40 m/s, 45 m above the truck. t = √(90 / 9.81) ≈ 3.0 s, so the bomb
+        lands about 40 × 3.0 ≈ 121 m ahead of where you let go.</p>
+      <p>Climbing throws the bomb upward first, so it falls for longer and flies further. Diving does the opposite.
+        Faster or higher means you must let go earlier. The <b>Flight physics</b> panel shows all of this live,
+        including how far you are from the nearest truck.</p>
+      <p>Trucks drive around, so aim where the truck <b>will be</b> when the bomb lands. A bomb within 14 m destroys
+        a truck. A near miss within 22 m damages it, and a second near miss finishes it. Trucks stop to shoot back
+        when you are close. Out of bombs? Fly low through the green ring on the runway to reload and patch up.</p>
+      <table class="controls">
+        <tr><th>Turn</th><td>A / D or ← / →</td></tr>
+        <tr><th>Nose down / up</th><td>W / S or ↑ / ↓</td></tr>
+        <tr><th>Faster / slower</th><td>Shift or E / Q</td></tr>
+        <tr><th>Drop bomb</th><td>Space</td></tr>
+        <tr><th>Bomb cam</th><td>C</td></tr>
+        <tr><th>Physics panel</th><td>H</td></tr>
+        <tr><th>Pause</th><td>P or Esc</td></tr>
+      </table>
+      <div class="actions">
+        <button id="btn-tut-back" type="button" class="ghost">Back</button>
+        <button id="btn-tut-go" type="button" class="primary">Got it, let me fly</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pause" class="screen hidden">
+    <div class="card">
+      <h1>Paused</h1>
+      <p id="pause-text">Your jet is hovering. Physically impossible, but we allowed it.</p>
+      <div class="actions">
+        <button id="btn-quit" type="button" class="ghost">Quit to menu</button>
+        <button id="btn-resume" type="button" class="primary">Resume</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="results" class="screen hidden">
+    <div class="card">
+      <h1 id="res-title"></h1>
+      <p id="res-sub"></p>
+      <div id="res-lines"></div>
+      <p id="res-wait" class="muted hidden">Waiting for the host to go back to the lobby…</p>
+      <div class="actions">
+        <button id="btn-menu" type="button" class="ghost">Menu</button>
+        <button id="btn-again" type="button" class="primary">Fly again</button>
+        <button id="btn-next" type="button" class="primary hidden">Next level</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="online" class="screen hidden">
+    <div class="card">
+      <h1>Play online</h1>
+      <p>Fly with up to 3 friends. One of you creates a room and shares its 4-letter code or link. Everyone
+        opens the game from the same server (same network, or a tunnel to the host's computer) and joins.</p>
+      <label class="field">Your name <input id="player-name" type="text" maxlength="14" autocomplete="nickname" placeholder="Maverick"></label>
+      <div class="actions left">
+        <button id="btn-create" type="button" class="primary">Create a room</button>
+      </div>
+      <h2>Or join a friend</h2>
+      <div class="join-row">
+        <input id="join-code" type="text" maxlength="4" placeholder="CODE" autocomplete="off" aria-label="Room code">
+        <button id="btn-join" type="button" class="primary">Join</button>
+      </div>
+      <p id="online-error" class="error hidden" role="alert"></p>
+      <div class="actions">
+        <button id="btn-online-back" type="button" class="ghost">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lobby" class="screen hidden">
+    <div class="card wide">
+      <h1>Room <span id="lobby-code" class="code"></span></h1>
+      <p class="muted">Share the code, or this link: <span id="lobby-link" class="link"></span>
+        <button id="btn-copy" type="button" class="ghost small">Copy link</button> <span id="lobby-note" class="muted"></span></p>
+      <h2>Players</h2>
+      <ul id="lobby-players" class="players"></ul>
+      <h2>Your role</h2>
+      <div id="lobby-roles" class="choices roles"></div>
+      <h2>Your jet</h2>
+      <div id="lobby-jets" class="choices"></div>
+      <h2>Game (the host picks)</h2>
+      <div id="lobby-maps" class="choices maps"></div>
+      <p id="lobby-role-note" class="muted"></p>
+      <div id="lobby-modes" class="choices"></div>
+      <div id="lobby-levels" class="choices tight"></div>
+      <div id="lobby-diffs" class="choices tight"></div>
+      <p id="lobby-wait" class="muted hidden">Waiting for the host to start…</p>
+      <div class="actions">
+        <button id="btn-lobby-leave" type="button" class="ghost">Leave room</button>
+        <button id="btn-lobby-start" type="button" class="primary">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -147,3 +147,17 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Island Bomber local files
+node_modules/
+test-results/
+playwright-report/
+
+.claude/
+.codex/
+.agents/
+.aws/
+*.blend1
+*.blend2
+__pycache__/
+*.pyc
